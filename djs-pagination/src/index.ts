@@ -1,0 +1,1 @@
+export { EmbedPagination } from './pagination/embed-pagination'
