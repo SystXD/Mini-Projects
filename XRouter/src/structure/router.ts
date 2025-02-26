@@ -116,10 +116,9 @@ export class XRouter {
           continue;
         }
         const route = pathToRoute(
-          info.filePath
-            .substring(this.dir.indexOf(path.basename(this.dir)) + path.basename(this.dir).length)
-            .replace(`${method.toUpperCase()}`, "/")
+          path.relative(this.dir, info.filePath).replace(new RegExp(`^${method.toUpperCase()}\\b`), "/")
         );
+        
         if (hooks)
           this.app
             .route(route)
@@ -145,25 +144,11 @@ export class XRouter {
     try {
       for (const files of getFiles(dir, true)) {
         const run = require(files.filePath);
-        const route = pathToRoute(
-          files.filePath.substring(dir.indexOf(path.basename(dir)) + path.basename(dir).length)
-        );
-
-        if (run.GET) {
-          this.#registerCatchAll("get", route, run);
-        }
-        if (run.POST) {
-          this.#registerCatchAll("post", route, run);
-        }
-        if (run.PUT) {
-          this.#registerCatchAll("put", route, run);
-        }
-        if (run.PATCH) {
-          this.#registerCatchAll("patch", route, run);
-        }
-        if (run.DELETE) {
-          this.#registerCatchAll("delete", route, run);
-        }
+        const route = pathToRoute(path.relative(dir, files.filePath));
+        // method, route, run
+       Promise.all((["get", "post", "put", "patch", "delete"] as HttpMethod[]).map(async (m) => {
+        if (run[m.toUpperCase()]) this.#registerCatchAll(m, route, run)
+       }))
       }
     } catch (error) {
       return console.debug(

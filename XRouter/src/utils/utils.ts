@@ -36,7 +36,7 @@ export function pathToRoute(filePath: string): string {
   return (
     "/" +
     normalizedPath
-      .replace(/server\.js$/, "")
+      .replace(/\.(js|ts)$/, "")
       .split(path.sep)
       .map(seg => seg.startsWith("[") && seg.endsWith("]") ? `:${seg.slice(1, -1)}` : seg)
       .filter(Boolean)
