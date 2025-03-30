@@ -46,4 +46,10 @@ export interface FileInfo {
    isFolder: boolean
 }
 
+export interface HooksOptions {
+   request: Request;
+   response: Response,
+   next: NextFunction
+}
+
 export type HttpMethod = "get" | "post" | "put" | "patch" | "delete";

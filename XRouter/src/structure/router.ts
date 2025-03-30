@@ -4,6 +4,7 @@ import { getFiles, getMethods, pathToRoute } from "../utils/utils";
 import path from "path";
 import { ServerContext } from "../utils/constants";
 import colors from "../utils/colors";
+import { XHooks } from "./hooks/xhooks";
 export class XRouter {
   public useHooks: boolean;
   public dir?: string;
@@ -105,6 +106,7 @@ export class XRouter {
           continue;
         }
 
+        const xhooks = Object.values(file).find((f) => f instanceof XHooks);
         const run = file.default;
         if (!run) {
           console.warn(
@@ -116,19 +118,34 @@ export class XRouter {
           continue;
         }
         const route = pathToRoute(
-          path.relative(this.dir, info.filePath).replace(new RegExp(`^${method.toUpperCase()}\\b`), "/")
+          info.filePath
+            .substring(
+              this.dir.indexOf(path.basename(this.dir)) +
+                path.basename(this.dir).length
+            )
+            .replace(`${method.toUpperCase()}`, "/")
         );
-        
         if (hooks)
-          this.app
-            .route(route)
-            [method](async (req, res, next) =>
-              ServerContext.run({ request: req, response: res, next }, run)
-            );
+          this.app.route(route)[method](async (req, res, next) => {
+            if (xhooks) {
+              await xhooks.preHook(req, res, next);
+              return Promise.resolve(
+                ServerContext.run({ request: req, response: res, next }, run)
+              ).then(() => xhooks.postHook(req, res, next));
+            }
+            ServerContext.run({ request: req, response: res, next }, run);
+          });
         else
-          this.app
-            .route(route)
-            [method](async (req, res, next) => run(req, res, next));
+          this.app.route(route)[method](async (req, res, next) => {
+            if (xhooks) {
+              await xhooks.preHook(req, res, next);
+              return Promise.resolve(run(req, res, next)).then(() =>
+                xhooks.postHook(req, res, next)
+              );
+            }
+
+            run(req, res, next);
+          });
       }
     } catch (error) {
       return console.error(
@@ -144,11 +161,16 @@ export class XRouter {
     try {
       for (const files of getFiles(dir, true)) {
         const run = require(files.filePath);
-        const route = pathToRoute(path.relative(dir, files.filePath));
-        // method, route, run
-       Promise.all((["get", "post", "put", "patch", "delete"] as HttpMethod[]).map(async (m) => {
-        if (run[m.toUpperCase()]) this.#registerCatchAll(m, route, run)
-       }))
+        const route = pathToRoute(
+          files.filePath.substring(
+            dir.indexOf(path.basename(dir)) + path.basename(dir).length
+          )
+        );
+
+        ["get", "post", "put", "patch", "delete"].forEach((m) => {
+          if (run[m.toUpperCase()])
+            this.#registerCatchAll(m as HttpMethod, route, run);
+        });
       }
     } catch (error) {
       return console.debug(
@@ -167,7 +189,7 @@ export class XRouter {
         [method](async (req, res, next) =>
           ServerContext.run(
             { request: req, response: res, next },
-            file[method.toUpperCase()]
+            await file[method.toUpperCase()]
           )
         );
     } else {
