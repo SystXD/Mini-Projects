@@ -1,5 +1,4 @@
 import { NextFunction, Request, Response } from "express";
-import { HooksOptions } from "../../typings";
 
 export abstract class XHooks {
   public async preHook(
